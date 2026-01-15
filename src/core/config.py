@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -51,8 +52,11 @@ class Settings:
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    # Carrega `.env` se existir (não versionado). Mantém override=False por segurança.
-    load_dotenv(override=False)
+    # Carrega `.env` da raiz do projeto (medgemma-poc), independente do cwd.
+    # Mantém override=False por segurança (variáveis já setadas no ambiente ganham).
+    project_root = Path(__file__).resolve().parents[2]
+    dotenv_path = project_root / ".env"
+    load_dotenv(dotenv_path=dotenv_path, override=False)
 
     model_id = os.getenv("MODEL_ID", "google/medgemma-4b-it")
     hf_token = os.getenv("HF_TOKEN") or None

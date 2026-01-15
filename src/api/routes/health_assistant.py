@@ -162,7 +162,7 @@ def explain(payload: HealthQuery, request: Request) -> HealthResponse:
 
 @router.get("/status", response_model=StatusResponse)
 @limiter.limit("120/minute")
-def status() -> StatusResponse:
+def status(request: Request) -> StatusResponse:
     s = get_settings()
     svc = _service()
     return StatusResponse(
@@ -179,7 +179,7 @@ def status() -> StatusResponse:
 
 @router.get("/metrics", response_model=MetricsResponse)
 @limiter.limit("120/minute")
-def metrics() -> MetricsResponse:
+def metrics(request: Request) -> MetricsResponse:
     avg = (_processing_time_sum_ms / _total_requests) if _total_requests else 0.0
     return MetricsResponse(
         total_requests=_total_requests,
@@ -191,7 +191,7 @@ def metrics() -> MetricsResponse:
 
 @router.get("/logs", response_model=LogsResponse)
 @limiter.limit("60/minute")
-def logs(cursor: Optional[str] = None, limit: int = 50) -> LogsResponse:
+def logs(request: Request, cursor: Optional[str] = None, limit: int = 50) -> LogsResponse:
     # cursor simples: índice inicial (string int)
     try:
         start_idx = int(cursor) if cursor else 0

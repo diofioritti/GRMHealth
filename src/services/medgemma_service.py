@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -267,15 +268,31 @@ class MedGemmaService:
 
         prompt_text = self._make_prompt(prompt=prompt, system_prompt=system_prompt, context=context)
 
+        # Proteções para execução em CPU (POC):
+        # - limitar tokens para evitar travas longas
+        # - limitar tempo para sempre retornar (mesmo que parcial)
+        max_new_tokens = int(self._settings.max_new_tokens)
+        max_time_s: Optional[float] = None
+
+        if self._device == "cpu":
+            max_new_tokens = min(max_new_tokens, int(os.getenv("CPU_MAX_NEW_TOKENS", "128")))
+            try:
+                max_time_s = float(os.getenv("CPU_MAX_TIME_S", "30"))
+            except ValueError:
+                max_time_s = 30.0
+
         t0 = time.time()
-        outputs = self._pipeline(
-            prompt_text,
-            max_new_tokens=self._settings.max_new_tokens,
-            do_sample=(self._settings.temperature > 0),
-            temperature=self._settings.temperature,
-            top_p=self._settings.top_p,
-            return_full_text=False,
-        )
+        gen_kwargs = {
+            "max_new_tokens": max_new_tokens,
+            "do_sample": (self._settings.temperature > 0),
+            "temperature": self._settings.temperature,
+            "top_p": self._settings.top_p,
+            "return_full_text": False,
+        }
+        if max_time_s is not None:
+            gen_kwargs["max_time"] = max_time_s
+
+        outputs = self._pipeline(prompt_text, **gen_kwargs)
         dt_ms = (time.time() - t0) * 1000
 
         # Pipeline retorna lista[dict]; pegamos generated_text
