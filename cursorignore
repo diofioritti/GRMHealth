@@ -1,0 +1,182 @@
+# ===========================================
+# .cursorignore - MedGemma POC
+# ===========================================
+# Arquivos e pastas que o Cursor AI deve ignorar
+# ao indexar o projeto para contexto
+
+# ===========================================
+# Python
+# ===========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ===========================================
+# Virtual Environments
+# ===========================================
+.venv/
+venv/
+ENV/
+env/
+.env/
+.conda/
+conda-env/
+
+# ===========================================
+# Hugging Face / ML Models (IMPORTANTE!)
+# ===========================================
+# Cache de modelos pode ter 10GB+ - NUNCA indexar
+.cache/
+~/.cache/huggingface/
+models/
+*.bin
+*.safetensors
+*.gguf
+*.ggml
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+*.pickle
+checkpoints/
+model_cache/
+huggingface_cache/
+
+# ===========================================
+# Dados e Datasets
+# ===========================================
+data/
+datasets/
+*.csv
+*.parquet
+*.arrow
+*.jsonl
+*.ndjson
+uploads/
+downloads/
+
+# ===========================================
+# Logs e Outputs
+# ===========================================
+logs/
+*.log
+*.log.*
+output/
+outputs/
+results/
+reports/
+
+# ===========================================
+# Arquivos de Ambiente e Secrets
+# ===========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# ===========================================
+# IDEs e Editores
+# ===========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# ===========================================
+# Testing e Coverage
+# ===========================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===========================================
+# Docker
+# ===========================================
+*.tar
+docker-data/
+
+# ===========================================
+# Jupyter Notebooks (checkpoints)
+# ===========================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ===========================================
+# Sistema Operacional
+# ===========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+
+# ===========================================
+# Dependências (se usar frontend)
+# ===========================================
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ===========================================
+# Documentação gerada
+# ===========================================
+docs/_build/
+site/
+.mkdocs/
+
+# ===========================================
+# Arquivos grandes genéricos
+# ===========================================
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.mp4
+*.mp3
+*.wav
+*.pdf
+*.docx
+*.xlsx
+
+# ===========================================
+# MedGemma específico
+# ===========================================
+# Imagens médicas de teste (podem ser grandes)
+*.dcm
+*.dicom
+*.nii
+*.nii.gz
+medical_images/
+test_images/
+sample_data/

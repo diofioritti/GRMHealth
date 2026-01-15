@@ -1,0 +1,2 @@
+"""Schemas e modelos (Pydantic)."""
+

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - MedGemma POC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <header class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div class="text-sm text-gray-500">MedGemma POC</div>
+          <div class="text-xl font-bold text-gray-900">Administração (POC)</div>
+        </div>
+        <a href="index.html" class="text-sm text-red-600 hover:text-red-700">Voltar</a>
+      </div>
+      <nav class="mt-4 flex flex-wrap gap-2">
+        <a href="config.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Config</a>
+        <a href="admin.html" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Admin</a>
+        <a href="status.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Status</a>
+        <a href="suporte.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Suporte</a>
+      </nav>
+    </header>
+
+    <main class="mt-6 grid gap-4">
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Warm-up do modelo</div>
+        <p class="mt-2 text-sm text-gray-700">
+          O modelo é carregado sob demanda (lazy). Use este botão para forçar o carregamento e medir tempo inicial.
+        </p>
+        <div class="mt-4 flex items-center gap-3 flex-wrap">
+          <button id="btn-warm" class="px-5 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 disabled:bg-gray-400">
+            Fazer warm-up
+          </button>
+          <div id="status" class="text-sm text-gray-600">-</div>
+        </div>
+        <pre id="out" class="mt-4 whitespace-pre-wrap text-xs bg-gray-50 border rounded-xl p-4"></pre>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Nota</div>
+        <p class="mt-2 text-sm text-gray-700">
+          Em uma POC, ações administrativas “de verdade” (ex: reload model, alterar config via UI) podem ser adicionadas,
+          mas nesta versão evitamos endpoints perigosos. Use a página <a class="text-red-600 hover:text-red-700" href="config.html">Config</a>
+          para editar o <span class="font-mono">.env</span>.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/js/api-client.js"></script>
+  <script>
+    const btn = document.getElementById('btn-warm');
+    const statusEl = document.getElementById('status');
+    const out = document.getElementById('out');
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      statusEl.textContent = 'Executando...';
+      out.textContent = '';
+      try {
+        const t0 = performance.now();
+        const resp = await window.ApiClient.sendQuery('Ping (warm-up). Responda apenas: OK', null, 'pt-BR');
+        const dt = performance.now() - t0;
+        statusEl.textContent = `OK • ${dt.toFixed(0)} ms`;
+        out.textContent = JSON.stringify(resp, null, 2);
+      } catch (e) {
+        statusEl.textContent = 'Erro';
+        out.textContent = e.message || 'Erro ao executar warm-up.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+

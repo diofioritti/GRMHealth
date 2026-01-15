@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Status - MedGemma POC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <header class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center">
+          <div class="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center mr-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm text-gray-500">MedGemma POC</div>
+            <div class="text-xl font-bold text-gray-900">Status do modelo</div>
+          </div>
+        </div>
+        <a href="index.html" class="text-sm text-red-600 hover:text-red-700">Voltar</a>
+      </div>
+      <nav class="mt-4 flex flex-wrap gap-2">
+        <a href="chat.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Chat</a>
+        <a href="consulta.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Consulta</a>
+        <a href="triagem.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Triagem</a>
+        <a href="explicacao.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Explicação</a>
+        <a href="status.html" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Status</a>
+        <a href="logs.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Logs</a>
+        <a href="metricas.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Métricas</a>
+      </nav>
+    </header>
+
+    <main class="mt-6 grid gap-4">
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="text-lg font-semibold">Status</div>
+          <button id="btn-refresh" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Atualizar</button>
+        </div>
+        <div id="status-msg" class="text-sm text-gray-600 mt-2"></div>
+        <div class="mt-4 grid md:grid-cols-2 gap-3">
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Modelo</div>
+            <div id="model-id" class="font-mono text-sm">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Carregado</div>
+            <div id="model-loaded" class="font-semibold text-sm">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Device</div>
+            <div id="device" class="font-mono text-sm">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Uptime</div>
+            <div id="uptime" class="font-mono text-sm">-</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Métricas</div>
+        <div class="mt-4 grid md:grid-cols-3 gap-3">
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Total requests</div>
+            <div id="m-total" class="text-2xl font-bold">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Tempo médio (ms)</div>
+            <div id="m-avg" class="text-2xl font-bold">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Último request</div>
+            <div id="m-last" class="font-mono text-sm">-</div>
+          </div>
+        </div>
+        <pre id="m-by-endpoint" class="mt-4 whitespace-pre-wrap text-xs bg-gray-50 border rounded-xl p-4"></pre>
+      </section>
+    </main>
+
+    <footer class="mt-6 text-center text-xs text-gray-500">
+      Esta é uma POC. Não substitui consulta médica.
+    </footer>
+  </div>
+
+  <script src="assets/js/api-client.js"></script>
+  <script>
+    const btn = document.getElementById('btn-refresh');
+
+    function fmtUptime(sec) {
+      const s = Math.max(0, Math.floor(sec || 0));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = s % 60;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+    }
+
+    async function refresh() {
+      document.getElementById('status-msg').textContent = 'Atualizando...';
+      try {
+        const st = await window.ApiClient.getStatus();
+        document.getElementById('model-id').textContent = st.model_id;
+        document.getElementById('model-loaded').textContent = String(st.model_loaded);
+        document.getElementById('device').textContent = st.device;
+        document.getElementById('uptime').textContent = fmtUptime(st.uptime_s);
+
+        const m = await window.ApiClient.getMetrics();
+        document.getElementById('m-total').textContent = m.total_requests;
+        document.getElementById('m-avg').textContent = (m.avg_processing_time_ms || 0).toFixed(0);
+        document.getElementById('m-last').textContent = m.last_request_iso || '-';
+        document.getElementById('m-by-endpoint').textContent = JSON.stringify(m.by_endpoint || {}, null, 2);
+
+        document.getElementById('status-msg').textContent = 'OK';
+      } catch (e) {
+        document.getElementById('status-msg').textContent = e.message || 'Erro ao buscar status.';
+      }
+    }
+
+    btn.addEventListener('click', refresh);
+    refresh();
+  </script>
+</body>
+</html>
+

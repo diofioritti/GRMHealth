@@ -1,0 +1,737 @@
+# Dashboard de Atendimento - Cursor Rules (DASH)
+
+## 🎯 CONTEXTO DO PROJETO
+
+Este é um dashboard web para análise de performance de atendimento de agentes virtuais (chatbots/IA).
+O sistema analiza interações entre clientes e agentes, medindo tempos, eficiência, e padrões de atendimento.
+Framework: **Dash (Plotly)** com Bootstrap components.
+
+## 🏗️ ARQUITETURA DO PROJETO
+
+### Estrutura de Pastas Obrigatória
+```
+dashboard-atendimento/
+├── app.py                          # Aplicação principal Dash
+├── index.py                        # Entry point (servidor)
+├── requirements.txt                # Dependências
+├── .env                           # Credenciais (não commitar)
+├── .env.example                   # Template de credenciais
+├── README.md                      # Documentação
+├── assets/
+│   ├── style.css                  # CSS customizado
+│   └── logo.png                   # Logo (opcional)
+├── config/
+│   ├── __init__.py
+│   └── database.py                # Conexão PostgreSQL
+├── queries/
+│   ├── __init__.py
+│   ├── metricas_principais.py     # Queries de métricas gerais
+│   ├── analise_tempo.py           # Queries de tempo
+│   ├── analise_mensagens.py       # Queries de mensagens
+│   ├── analise_temporal.py        # Queries de dias/períodos
+│   └── analise_clinicas.py        # Queries de clínicas
+├── utils/
+│   ├── __init__.py
+│   └── formatters.py              # Formatação de dados
+├── components/
+│   ├── __init__.py
+│   ├── layout.py                  # Layout principal
+│   ├── cards.py                   # Cards de métricas
+│   ├── graficos.py                # Componentes de gráficos
+│   └── tabelas.py                 # Tabelas detalhadas
+└── callbacks/
+    ├── __init__.py
+    ├── filtros.py                 # Callbacks de filtros
+    ├── graficos_callbacks.py      # Callbacks de gráficos
+    └── tabelas_callbacks.py       # Callbacks de tabelas
+```
+
+## 🗄️ BANCO DE DADOS POSTGRESQL
+
+### Tabelas Principais
+```sql
+-- protocol_status_history
+-- Campos: id, protocol_id, status, created_date
+-- Descrição: Histórico de mudanças de status dos protocolos
+
+-- protocol_conversarion_history (ATENÇÃO: typo é intencional no banco)
+-- Campos: id, protocol_id, type (CLIENT/AGENT), message, created_date, provider_id
+-- Descrição: Histórico de mensagens trocadas
+```
+
+### Convenções do Banco
+- Todos os timestamps estão em UTC-3 (timezone Brasil)
+- Status possíveis: SAUDACAO, FAQ, SESSION_TIMEOUT, etc.
+- Type na conversa: CLIENT ou AGENT
+- protocol_id é a chave para relacionar as tabelas
+
+## 📚 STACK TECNOLÓGICA OBRIGATÓRIA
+```python
+# requirements.txt
+dash==2.14.2                    # Framework principal
+dash-bootstrap-components==1.5.0  # Bootstrap 5 components
+plotly==5.18.0                  # Gráficos interativos
+pandas==2.2.0                   # Manipulação de dados
+psycopg2-binary==2.9.9          # Conector PostgreSQL
+python-dotenv==1.0.0            # Variáveis de ambiente
+gunicorn==21.2.0                # Servidor de produção
+```
+
+## 🎨 PADRÕES DE CÓDIGO DASH
+
+### Importações Padrão
+```python
+# Ordem de imports:
+# 1. Bibliotecas padrão Python
+# 2. Dash e componentes
+# 3. Bibliotecas terceiras
+# 4. Módulos locais
+
+import os
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import dash
+from dash import dcc, html, Input, Output, State, callback
+import dash_bootstrap_components as dbc
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
+from dotenv import load_dotenv
+
+from config.database import get_connection
+from queries.metricas_principais import get_total_atendimentos
+```
+
+### Nomenclatura
+- **Arquivos**: snake_case (analise_tempo.py)
+- **Classes**: PascalCase (DatabaseConnection)
+- **Funções**: snake_case (get_dados_protocolo)
+- **Constantes**: UPPER_SNAKE_CASE (DB_HOST, COLOR_PRIMARY)
+- **Variáveis**: snake_case (total_atendimentos)
+- **IDs Dash**: kebab-case ('total-atendimentos', 'filtro-data-inicio')
+
+### IDs de Componentes Dash
+- Usar nomes descritivos e únicos
+- Padrão: `{tipo}-{nome}` (ex: 'card-total-atendimentos', 'grafico-tempo-medio')
+- Store: `{nome}-store` (ex: 'dados-protocolos-store')
+- Botões: `btn-{acao}` (ex: 'btn-atualizar', 'btn-exportar')
+- Filtros: `filtro-{campo}` (ex: 'filtro-data-inicio')
+
+### Queries SQL
+```python
+# queries/metricas_principais.py
+
+QUERY_TOTAL_ATENDIMENTOS = """
+    -- Total de atendimentos realizados
+    SELECT 
+        COUNT(DISTINCT protocol_id) AS total_atendimentos
+    FROM protocol_status_history
+    WHERE created_date >= %s 
+      AND created_date <= %s
+"""
+
+def get_total_atendimentos(data_inicio, data_fim):
+    """
+    Retorna total de atendimentos no período.
+    
+    Args:
+        data_inicio: Data inicial (datetime)
+        data_fim: Data final (datetime)
+    
+    Returns:
+        int: Total de atendimentos
+    """
+    try:
+        conn = get_connection()
+        df = pd.read_sql_query(
+            QUERY_TOTAL_ATENDIMENTOS, 
+            conn, 
+            params=(data_inicio, data_fim)
+        )
+        conn.close()
+        return df['total_atendimentos'].iloc[0]
+    except Exception as e:
+        print(f"Erro ao buscar total de atendimentos: {e}")
+        return 0
+```
+
+### Conexão com Banco
+```python
+# config/database.py
+
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def get_connection():
+    """
+    Cria e retorna conexão com PostgreSQL.
+    Usa variáveis de ambiente do .env
+    """
+    return psycopg2.connect(
+        host=os.getenv('DB_HOST'),
+        port=os.getenv('DB_PORT'),
+        database=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        cursor_factory=RealDictCursor
+    )
+
+def test_connection():
+    """Testa conexão com banco"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Erro na conexão: {e}")
+        return False
+```
+
+### Estrutura de Componentes
+```python
+# components/cards.py
+
+import dash_bootstrap_components as dbc
+from dash import html
+
+def criar_card_metrica(id_card, titulo, valor, icone="📊", cor="primary"):
+    """
+    Cria um card de métrica com Bootstrap.
+    
+    Args:
+        id_card: ID único do card
+        titulo: Título da métrica
+        valor: Valor inicial (pode ser atualizado via callback)
+        icone: Emoji do ícone
+        cor: Cor do card (primary, success, warning, danger, info)
+    
+    Returns:
+        dbc.Card: Componente do card
+    """
+    return dbc.Card([
+        dbc.CardBody([
+            html.H6(f"{icone} {titulo}", className="card-subtitle mb-2 text-muted"),
+            html.H2(id=id_card, children=valor, className="card-title"),
+        ])
+    ], color=cor, outline=True, className="mb-3")
+```
+
+### Layout Principal
+```python
+# components/layout.py
+
+import dash_bootstrap_components as dbc
+from dash import dcc, html
+
+def criar_layout():
+    """Cria o layout principal do dashboard"""
+    
+    return dbc.Container([
+        # Header
+        dbc.Row([
+            dbc.Col([
+                html.H1("📊 Dashboard de Atendimento", className="text-primary"),
+                html.P("Análise de Performance de Agentes Virtuais", 
+                       className="lead")
+            ])
+        ], className="mb-4"),
+        
+        # Filtros
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5("⚙️ Filtros", className="card-title"),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Data Início"),
+                                dcc.DatePickerSingle(
+                                    id='filtro-data-inicio',
+                                    display_format='DD/MM/YYYY',
+                                    className="mb-2"
+                                )
+                            ], md=4),
+                            dbc.Col([
+                                html.Label("Data Fim"),
+                                dcc.DatePickerSingle(
+                                    id='filtro-data-fim',
+                                    display_format='DD/MM/YYYY',
+                                    className="mb-2"
+                                )
+                            ], md=4),
+                            dbc.Col([
+                                html.Label("  "),  # Spacing
+                                html.Br(),
+                                dbc.Button("🔄 Atualizar", 
+                                          id="btn-atualizar", 
+                                          color="primary",
+                                          className="w-100")
+                            ], md=4)
+                        ])
+                    ])
+                ])
+            ])
+        ], className="mb-4"),
+        
+        # Store para dados
+        dcc.Store(id='dados-store'),
+        
+        # Cards de métricas
+        html.Div(id='cards-metricas'),
+        
+        # Gráficos
+        html.Div(id='graficos-container'),
+        
+        # Tabela detalhada
+        html.Div(id='tabela-container')
+        
+    ], fluid=True)
+```
+
+### Callbacks
+```python
+# callbacks/filtros.py
+
+from dash import Input, Output, callback
+from queries.metricas_principais import get_total_atendimentos
+from queries.analise_tempo import get_dados_completos
+
+@callback(
+    Output('dados-store', 'data'),
+    Input('btn-atualizar', 'n_clicks'),
+    State('filtro-data-inicio', 'date'),
+    State('filtro-data-fim', 'date'),
+    prevent_initial_call=False
+)
+def atualizar_dados(n_clicks, data_inicio, data_fim):
+    """
+    Atualiza os dados quando o botão é clicado.
+    Armazena no dcc.Store para ser usado por outros callbacks.
+    """
+    if data_inicio is None or data_fim is None:
+        from datetime import datetime, timedelta
+        data_fim = datetime.now()
+        data_inicio = data_fim - timedelta(days=30)
+    
+    # Buscar todos os dados necessários
+    dados = {
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
+        'total_atendimentos': get_total_atendimentos(data_inicio, data_fim),
+        # Adicionar outras queries aqui
+    }
+    
+    return dados
+
+@callback(
+    Output('card-total-atendimentos', 'children'),
+    Input('dados-store', 'data')
+)
+def atualizar_card_total(dados):
+    """Atualiza card de total de atendimentos"""
+    if dados is None:
+        return "0"
+    return f"{dados['total_atendimentos']:,}".replace(",", ".")
+```
+
+## 🎯 MÉTRICAS DO DASHBOARD
+
+### Métricas Principais (Cards)
+1. Total de Atendimentos Realizados
+2. Total de Desvios para Atendimento Humano
+3. Taxa de Resolução Automática (%)
+4. Taxa de Desvio para Humano (%)
+5. Tempo Médio de Atendimento
+6. Tempo Médio até Timeout
+
+### Análises Detalhadas
+- Atendimento mais rápido / mais demorado
+- Distribuição de tempo de atendimento
+- Quantidade de mensagens (total, cliente, agente)
+- Dias da semana mais movimentados
+- Períodos do dia (Manhã, Tarde, Noite, Madrugada)
+- Clínicas mais ofertadas e selecionadas
+- Classificação de atendimentos (Finalizado, Timeout, etc)
+
+## 🎨 DESIGN DO DASHBOARD
+
+### Tema Bootstrap
+```python
+# app.py
+import dash_bootstrap_components as dbc
+
+# Usar tema Bootstrap (escolher um)
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.BOOTSTRAP],  # ou FLATLY, COSMO, LUMEN
+    suppress_callback_exceptions=True
+)
+```
+
+### Temas Recomendados:
+- `dbc.themes.BOOTSTRAP` - Padrão
+- `dbc.themes.FLATLY` - Moderno e limpo ⭐ **RECOMENDADO**
+- `dbc.themes.COSMO` - Elegante
+- `dbc.themes.LUX` - Sofisticado
+- `dbc.themes.CYBORG` - Dark mode
+
+### Cores Padrão
+```python
+# config/colors.py
+
+COLOR_PRIMARY = '#1f77b4'    # Azul
+COLOR_SUCCESS = '#2ca02c'    # Verde
+COLOR_WARNING = '#ff7f0e'    # Laranja
+COLOR_DANGER = '#d62728'     # Vermelho
+COLOR_INFO = '#9467bd'       # Roxo
+
+# Bootstrap colors
+CARD_PRIMARY = "primary"
+CARD_SUCCESS = "success"
+CARD_WARNING = "warning"
+CARD_DANGER = "danger"
+CARD_INFO = "info"
+```
+
+### CSS Customizado (assets/style.css)
+```css
+/* Espaçamento global */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Cards de métricas */
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Títulos */
+h1, h2, h3 {
+    font-weight: 600;
+}
+
+/* Gráficos */
+.plotly-graph-div {
+    border-radius: 8px;
+}
+```
+
+### Configuração de Gráficos Plotly
+```python
+# config/plotly_config.py
+
+PLOTLY_TEMPLATE = "plotly_white"
+
+PLOTLY_CONFIG = {
+    'displayModeBar': True,
+    'displaylogo': False,
+    'modeBarButtonsToRemove': [
+        'pan2d', 
+        'lasso2d', 
+        'select2d',
+        'autoScale2d'
+    ],
+    'toImageButtonOptions': {
+        'format': 'png',
+        'filename': 'dashboard_grafico',
+        'height': 800,
+        'width': 1200,
+        'scale': 2
+    }
+}
+
+GRAPH_LAYOUT = {
+    'template': PLOTLY_TEMPLATE,
+    'plot_bgcolor': 'rgba(0,0,0,0)',
+    'paper_bgcolor': 'rgba(0,0,0,0)',
+    'font': {'family': 'Segoe UI, sans-serif'},
+    'margin': {'t': 50, 'l': 50, 'r': 50, 'b': 50}
+}
+```
+
+## ⚠️ REGRAS IMPORTANTES
+
+### SEMPRE
+- ✅ Usar IDs únicos e descritivos (kebab-case)
+- ✅ Armazenar dados em dcc.Store para performance
+- ✅ Usar prevent_initial_call apropriadamente
+- ✅ Tratar erros de conexão com try/except
+- ✅ Validar dados antes de plotar gráficos
+- ✅ Adicionar docstrings em todas as funções
+- ✅ Usar type hints em funções
+- ✅ Comentar queries SQL complexas
+- ✅ Formatar datas em pt-BR (dd/mm/yyyy)
+- ✅ Formatar tempo como HH:MM:SS
+- ✅ Usar dcc.Loading() para feedback visual
+
+### NUNCA
+- ❌ Hardcodar credenciais no código
+- ❌ Fazer queries dentro de callbacks (usar funções separadas)
+- ❌ Usar SELECT * (sempre especificar campos)
+- ❌ Ignorar erros de banco (sempre tratar)
+- ❌ Criar callbacks com mais de 50 linhas
+- ❌ Misturar lógica de negócio com apresentação
+- ❌ Commitar arquivo .env
+- ❌ Usar IDs duplicados
+- ❌ Esquecer de fechar conexões de banco
+
+## 🔧 TRATAMENTO DE ERROS EM CALLBACKS
+```python
+from dash import Input, Output, callback, html
+import dash_bootstrap_components as dbc
+
+@callback(
+    Output('grafico-tempo', 'figure'),
+    Output('error-alert', 'children'),
+    Output('error-alert', 'is_open'),
+    Input('dados-store', 'data')
+)
+def atualizar_grafico(dados):
+    """Atualiza gráfico com tratamento de erro"""
+    try:
+        if dados is None or len(dados) == 0:
+            return {}, "Nenhum dado disponível", True
+        
+        # Processar dados e criar gráfico
+        fig = criar_grafico(dados)
+        return fig, "", False
+        
+    except Exception as e:
+        erro_msg = f"❌ Erro ao criar gráfico: {str(e)}"
+        print(erro_msg)
+        return {}, erro_msg, True
+
+# No layout, adicionar:
+dbc.Alert(id='error-alert', color='danger', is_open=False, dismissable=True)
+```
+
+## 📊 FORMATAÇÃO DE DADOS
+```python
+# utils/formatters.py
+
+def formatar_tempo_hms(segundos: int) -> str:
+    """Converte segundos para formato HH:MM:SS"""
+    if segundos is None or segundos < 0:
+        return "00:00:00"
+    horas = segundos // 3600
+    minutos = (segundos % 3600) // 60
+    segs = segundos % 60
+    return f"{horas:02d}:{minutos:02d}:{segs:02d}"
+
+def formatar_percentual(valor: float) -> str:
+    """Formata número como percentual"""
+    if valor is None:
+        return "0.0%"
+    return f"{valor:.1f}%"
+
+def formatar_numero(valor: int) -> str:
+    """Formata número com separador de milhar (padrão BR)"""
+    if valor is None:
+        return "0"
+    return f"{valor:,}".replace(",", ".")
+
+def formatar_data_br(data: str) -> str:
+    """Converte data ISO para formato brasileiro"""
+    from datetime import datetime
+    dt = datetime.fromisoformat(data)
+    return dt.strftime("%d/%m/%Y")
+```
+
+## 🚀 INICIALIZAÇÃO DO APP
+```python
+# app.py (estrutura básica)
+
+import dash
+import dash_bootstrap_components as dbc
+from dash import dcc, html
+
+from components.layout import criar_layout
+
+# Inicializar app
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.FLATLY],
+    suppress_callback_exceptions=True,
+    title="Dashboard de Atendimento",
+    update_title="Carregando..."
+)
+
+# Configurar servidor
+server = app.server
+
+# Definir layout
+app.layout = criar_layout()
+
+# Importar callbacks (IMPORTANTE: depois de definir app)
+import callbacks.filtros
+import callbacks.graficos_callbacks
+import callbacks.tabelas_callbacks
+
+if __name__ == '__main__':
+    app.run_server(debug=True, host='0.0.0.0', port=8050)
+```
+```python
+# index.py (entry point para produção)
+
+from app import app, server
+
+if __name__ == '__main__':
+    app.run_server(debug=False)
+```
+
+## 📝 .ENV.EXAMPLE OBRIGATÓRIO
+```env
+# Configurações do Banco de Dados PostgreSQL
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=seu_banco
+DB_USER=seu_usuario
+DB_PASSWORD=sua_senha
+```
+
+## 🧪 TESTE DE CALLBACKS
+```python
+# Para testar callbacks localmente
+if __name__ == '__main__':
+    # Modo de teste
+    from dash.testing.application_runners import import_app
+    
+    def test_callback():
+        app = import_app('app')
+        # Testes aqui
+```
+
+## 📖 README.MD OBRIGATÓRIO
+
+Deve conter:
+- Descrição do projeto
+- Pré-requisitos (Python 3.9+, PostgreSQL)
+- Instalação passo a passo
+- Configuração do .env
+- Como rodar: `python app.py` ou `gunicorn index:server`
+- Estrutura de pastas
+- Tecnologias utilizadas (Dash, Plotly, PostgreSQL)
+- Screenshots do dashboard
+
+## 🎓 CONVENÇÕES ESPECÍFICAS DO PROJETO
+
+1. **Nome da tabela com typo**: `protocol_conversarion_history` (sem o 't')
+2. **Timezone**: Todos os dados estão em UTC-3 (Brasil)
+3. **Classificação de Atendimento**:
+   - "Finalizado pelo Agente": TIMEOUT + última interação AGENT
+   - "Cliente parou de responder": TIMEOUT + última interação CLIENT
+   - "Finalizado Normalmente": sem TIMEOUT
+4. **Períodos do Dia**:
+   - Manhã: 06h-12h
+   - Tarde: 12h-18h
+   - Noite: 18h-00h
+   - Madrugada: 00h-06h
+5. **Callbacks**:
+   - Sempre usar @callback decorator
+   - Agrupar callbacks relacionados no mesmo arquivo
+   - Usar dcc.Store para compartilhar dados entre callbacks
+
+## 💡 DICAS DE DESENVOLVIMENTO DASH
+
+### Performance
+```python
+# Usar dcc.Store para evitar queries duplicadas
+dcc.Store(id='dados-store', storage_type='session')
+
+# Loading durante processamento
+dcc.Loading(
+    id="loading",
+    type="default",  # ou "graph", "cube", "circle", "dot"
+    children=html.Div(id="grafico-container")
+)
+
+# Prevent initial call quando apropriado
+@callback(..., prevent_initial_call=True)
+```
+
+### Debugging
+```python
+# Adicionar no app.py para debug
+app.config.suppress_callback_exceptions = False  # Ver erros de callbacks
+app.enable_dev_tools(debug=True, dev_tools_hot_reload=True)
+
+# Console logs
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+### Intervalos de Atualização
+```python
+# Para atualização automática
+dcc.Interval(
+    id='interval-component',
+    interval=5*60*1000,  # 5 minutos em millisegundos
+    n_intervals=0
+)
+```
+
+## 🔍 ESTRUTURA DE CALLBACK COMPLEXO
+```python
+@callback(
+    # Outputs
+    Output('grafico-1', 'figure'),
+    Output('grafico-2', 'figure'),
+    Output('tabela-1', 'data'),
+    # Inputs
+    Input('btn-atualizar', 'n_clicks'),
+    Input('filtro-periodo', 'value'),
+    # States (não triggam o callback)
+    State('filtro-data-inicio', 'date'),
+    State('filtro-data-fim', 'date'),
+    # Configurações
+    prevent_initial_call=False
+)
+def atualizar_multiplos_componentes(n_clicks, periodo, data_inicio, data_fim):
+    """
+    Callback que atualiza múltiplos componentes.
+    States não triggam, apenas fornecem valores.
+    """
+    # Lógica aqui
+    return fig1, fig2, dados_tabela
+```
+
+## 🚀 DEPLOY
+
+### Desenvolvimento
+```bash
+python app.py
+# Acesse: http://localhost:8050
+```
+
+### Produção (Gunicorn)
+```bash
+gunicorn index:server -b 0.0.0.0:8050 --workers 4
+```
+
+### Docker (opcional)
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+EXPOSE 8050
+CMD ["gunicorn", "index:server", "-b", "0.0.0.0:8050", "--workers", "4"]
+```
+
+---
+
+**IMPORTANTE**: Siga TODAS estas regras ao gerar código Dash. O padrão de callbacks e IDs é crucial para o funcionamento correto. Pergunte se algo não estiver claro antes de implementar.

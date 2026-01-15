@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat MedGemma - POC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #chat-messages::-webkit-scrollbar { width: 6px; }
+    #chat-messages::-webkit-scrollbar-track { background: #f1f1f1; }
+    #chat-messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 6px; }
+    #chat-messages::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+    .typing-indicator span {
+      height: 10px; width: 10px; float: left; margin: 0 1px;
+      background-color: #9E9EA1; display: block; border-radius: 50%;
+      opacity: 0.4; animation: 1s blink infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 50% { opacity: 1; } }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .status-pulse { animation: pulse 2s infinite; }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans flex items-center justify-center min-h-screen">
+
+  <div class="flex flex-col w-full max-w-lg h-[90vh] bg-white rounded-2xl shadow-2xl m-4">
+
+    <header class="flex items-center justify-between p-4 border-b border-gray-200 bg-white rounded-t-2xl shadow-sm">
+      <div class="flex items-center">
+        <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center mr-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <div>
+          <span class="text-xl font-bold text-red-600">redemais</span>
+          <h1 class="text-3xl font-bold text-black -mt-2">Saúde</h1>
+        </div>
+      </div>
+
+      <div id="connection-status" class="flex items-center space-x-2 px-3 py-1 rounded-full bg-gray-100">
+        <div id="status-dot" class="w-3 h-3 rounded-full bg-gray-400"></div>
+        <span id="status-text" class="text-xs font-medium text-gray-600">Verificando...</span>
+      </div>
+    </header>
+
+    <div class="px-4 py-2 bg-gray-50 border-b border-gray-200">
+      <details class="group">
+        <summary class="flex items-center justify-between cursor-pointer list-none text-xs text-gray-500">
+          <span>Info da Sessão (Debug)</span>
+          <span class="transition group-open:rotate-180">
+            <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="16"><path d="M6 9l6 6 6-6"></path></svg>
+          </span>
+        </summary>
+        <div class="mt-2 p-2 bg-gray-800 rounded-lg text-xs font-mono text-green-400 space-y-1">
+          <p>Session ID: <span id="debug-session-id">-</span></p>
+          <p>API Base: <span id="debug-api-base">-</span></p>
+          <p>Modelo: <span id="debug-model-id">-</span></p>
+          <p>Device: <span id="debug-device">-</span></p>
+          <p>Model loaded: <span id="debug-model-loaded">-</span></p>
+        </div>
+      </details>
+    </div>
+
+    <main id="chat-messages" class="flex-1 p-6 overflow-y-auto space-y-4">
+      <div class="flex justify-start">
+        <div class="bg-gray-200 text-gray-800 rounded-xl rounded-bl-none p-3 max-w-xs">
+          <p class="text-sm">
+            Olá! Eu sou uma POC de chat integrada ao MedGemma. Descreva sua dúvida de saúde em português.
+          </p>
+          <p class="text-xs text-gray-500 mt-2">
+            Aviso: esta é uma orientação automatizada e não substitui consulta médica.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="p-4 bg-white border-t border-gray-200 rounded-b-2xl">
+      <form id="chat-form" class="flex items-end space-x-3">
+        <textarea
+          id="message-input"
+          placeholder="Ex: Estou com febre e dor de garganta há 2 dias..."
+          rows="1"
+          class="flex-1 w-full px-4 py-3 bg-gray-100 rounded-2xl border-2 border-transparent focus:outline-none focus:border-red-500 transition-colors resize-none overflow-y-hidden"
+          autocomplete="off"></textarea>
+        <button
+          type="submit"
+          id="submit-button"
+          class="bg-red-600 text-white rounded-full p-3 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-transform transform hover:scale-110 active:scale-100 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+          </svg>
+        </button>
+      </form>
+      <p class="text-[11px] text-gray-500 mt-2">
+        Dica: Enter envia, Shift+Enter quebra linha.
+      </p>
+    </footer>
+  </div>
+
+  <script src="assets/js/api-client.js"></script>
+  <script>
+    const Utils = {
+      generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      },
+      generateSessionId() {
+        return `session_${this.generateUUID()}`;
+      },
+    };
+
+    class ChatUI {
+      constructor() {
+        this.chatMessages = document.getElementById('chat-messages');
+        this.messageInput = document.getElementById('message-input');
+        this.chatForm = document.getElementById('chat-form');
+        this.submitButton = document.getElementById('submit-button');
+        this.statusDot = document.getElementById('status-dot');
+        this.statusText = document.getElementById('status-text');
+        this.currentTypingIndicator = null;
+      }
+
+      updateConnectionStatus(status) {
+        const statusConfig = {
+          'checking': { color: 'bg-yellow-400', text: 'Verificando...', pulse: true },
+          'connected': { color: 'bg-green-500', text: 'API OK', pulse: false },
+          'disconnected': { color: 'bg-gray-400', text: 'Sem conexão', pulse: false },
+          'failed': { color: 'bg-red-500', text: 'Falha', pulse: false }
+        };
+        const cfg = statusConfig[status] || statusConfig['disconnected'];
+        this.statusDot.className = `w-3 h-3 rounded-full ${cfg.color}`;
+        if (cfg.pulse) this.statusDot.classList.add('status-pulse');
+        this.statusText.textContent = cfg.text;
+        const disable = status === 'failed';
+        this.messageInput.disabled = disable;
+        this.submitButton.disabled = disable;
+      }
+
+      addMessage(text, sender, isError = false) {
+        const wrapper = document.createElement('div');
+        const bubble = document.createElement('div');
+        const p = document.createElement('p');
+
+        wrapper.classList.add('flex');
+        p.classList.add('text-sm');
+        bubble.classList.add('p-3', 'max-w-xs', 'rounded-xl', 'break-words');
+
+        if (sender === 'user') {
+          wrapper.classList.add('justify-end');
+          bubble.classList.add('bg-red-600', 'text-white', 'rounded-br-none');
+        } else {
+          wrapper.classList.add('justify-start');
+          bubble.classList.add(isError ? 'bg-red-200' : 'bg-gray-200');
+          bubble.classList.add(isError ? 'text-red-900' : 'text-gray-800');
+          bubble.classList.add('rounded-bl-none');
+        }
+
+        p.textContent = text;
+        bubble.appendChild(p);
+        wrapper.appendChild(bubble);
+        this.chatMessages.appendChild(wrapper);
+        this.scrollToBottom();
+      }
+
+      showTypingIndicator() {
+        if (this.currentTypingIndicator) return this.currentTypingIndicator;
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('flex', 'justify-start');
+        wrapper.id = 'typing-indicator';
+
+        const bubble = document.createElement('div');
+        bubble.classList.add('bg-gray-200', 'text-gray-800', 'rounded-xl', 'rounded-bl-none', 'p-3', 'max-w-xs');
+
+        const indicator = document.createElement('div');
+        indicator.classList.add('typing-indicator');
+        indicator.innerHTML = '<span></span><span></span><span></span>';
+
+        bubble.appendChild(indicator);
+        wrapper.appendChild(bubble);
+        this.chatMessages.appendChild(wrapper);
+        this.scrollToBottom();
+        this.currentTypingIndicator = wrapper;
+        return wrapper;
+      }
+
+      hideTypingIndicator() {
+        if (this.currentTypingIndicator) {
+          this.currentTypingIndicator.remove();
+          this.currentTypingIndicator = null;
+        }
+      }
+
+      addSystemMessage(text) {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('flex', 'justify-center', 'my-2');
+        const badge = document.createElement('span');
+        badge.classList.add('text-xs', 'text-gray-500', 'bg-gray-100', 'px-3', 'py-1', 'rounded-full');
+        badge.textContent = text;
+        wrapper.appendChild(badge);
+        this.chatMessages.appendChild(wrapper);
+        this.scrollToBottom();
+      }
+
+      scrollToBottom() {
+        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+      }
+
+      clearInput() {
+        this.messageInput.value = '';
+        this.messageInput.style.height = 'auto';
+        this.messageInput.style.overflowY = 'hidden';
+      }
+
+      setSubmitEnabled(enabled) {
+        this.submitButton.disabled = !enabled;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const chatUI = new ChatUI();
+      const sessionId = Utils.generateSessionId();
+
+      document.getElementById('debug-session-id').textContent = sessionId;
+      document.getElementById('debug-api-base').textContent = window.API_BASE_URL || '(mesma origem)';
+
+      async function refreshStatus() {
+        chatUI.updateConnectionStatus('checking');
+        try {
+          const st = await window.ApiClient.getStatus();
+          chatUI.updateConnectionStatus('connected');
+          document.getElementById('debug-model-id').textContent = st.model_id;
+          document.getElementById('debug-device').textContent = st.device;
+          document.getElementById('debug-model-loaded').textContent = String(st.model_loaded);
+        } catch (e) {
+          chatUI.updateConnectionStatus('failed');
+          document.getElementById('debug-model-id').textContent = '-';
+          document.getElementById('debug-device').textContent = '-';
+          document.getElementById('debug-model-loaded').textContent = '-';
+        }
+      }
+
+      refreshStatus();
+      setInterval(refreshStatus, 15000);
+
+      chatUI.chatForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const messageText = chatUI.messageInput.value.trim();
+        if (!messageText) return;
+
+        chatUI.addMessage(messageText, 'user');
+        chatUI.clearInput();
+        chatUI.setSubmitEnabled(false);
+        chatUI.showTypingIndicator();
+
+        try {
+          const resp = await window.ApiClient.sendQuery(messageText, null, "pt-BR");
+          chatUI.hideTypingIndicator();
+          chatUI.addMessage(resp.response, 'agent');
+          if (resp.disclaimer) {
+            chatUI.addSystemMessage(resp.disclaimer);
+          }
+        } catch (e) {
+          chatUI.hideTypingIndicator();
+          chatUI.addMessage(e.message || 'Erro ao chamar a API.', 'agent', true);
+        } finally {
+          chatUI.setSubmitEnabled(true);
+        }
+      });
+
+      chatUI.messageInput.addEventListener('input', () => {
+        const maxHeight = 150;
+        chatUI.messageInput.style.height = 'auto';
+        const newHeight = chatUI.messageInput.scrollHeight;
+        if (newHeight > maxHeight) {
+          chatUI.messageInput.style.height = `${maxHeight}px`;
+          chatUI.messageInput.style.overflowY = 'auto';
+        } else {
+          chatUI.messageInput.style.height = `${newHeight}px`;
+          chatUI.messageInput.style.overflowY = 'hidden';
+        }
+      });
+
+      chatUI.messageInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          chatUI.chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+

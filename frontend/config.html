@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Config - MedGemma POC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <header class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div class="text-sm text-gray-500">MedGemma POC</div>
+          <div class="text-xl font-bold text-gray-900">Configuração</div>
+        </div>
+        <a href="index.html" class="text-sm text-red-600 hover:text-red-700">Voltar</a>
+      </div>
+      <nav class="mt-4 flex flex-wrap gap-2">
+        <a href="chat.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Chat</a>
+        <a href="status.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Status</a>
+        <a href="config.html" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Config</a>
+        <a href="admin.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Admin</a>
+        <a href="suporte.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Suporte</a>
+      </nav>
+    </header>
+
+    <main class="mt-6 grid gap-4">
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Como configurar</div>
+        <div class="mt-3 text-sm text-gray-700 space-y-2">
+          <p>
+            Esta UI não edita o servidor diretamente. Para alterar configurações, edite o arquivo <span class="font-mono">.env</span>
+            (criado a partir de <span class="font-mono">env.example</span>) e reinicie a API.
+          </p>
+          <ul class="list-disc pl-5 text-sm text-gray-700">
+            <li><span class="font-mono">MODEL_ID</span>: modelo HF (default: <span class="font-mono">google/medgemma-4b-it</span>)</li>
+            <li><span class="font-mono">HF_TOKEN</span>: token HF se necessário</li>
+            <li><span class="font-mono">DEVICE</span>: <span class="font-mono">auto|cpu|cuda</span></li>
+            <li><span class="font-mono">USE_QUANTIZATION</span>: <span class="font-mono">true|false</span> (4-bit em GPU)</li>
+            <li><span class="font-mono">MAX_NEW_TOKENS</span>, <span class="font-mono">TEMPERATURE</span>, <span class="font-mono">TOP_P</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="text-lg font-semibold">Config atual (via /status)</div>
+          <button id="btn-refresh" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Atualizar</button>
+        </div>
+        <div id="status" class="text-sm text-gray-600 mt-2">-</div>
+        <pre id="raw" class="mt-4 whitespace-pre-wrap text-xs bg-gray-50 border rounded-xl p-4"></pre>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Apontar a UI para outra API (opcional)</div>
+        <p class="text-sm text-gray-700 mt-2">
+          Se você abrir estes HTMLs fora do servidor (ex: Live Server), pode definir <span class="font-mono">window.API_BASE_URL</span>.
+        </p>
+        <div class="mt-3 flex gap-2 flex-wrap">
+          <input id="api-base" class="flex-1 min-w-[260px] px-4 py-2 rounded-xl border bg-gray-50" placeholder="Ex: http://127.0.0.1:8000" />
+          <button id="btn-set" class="px-4 py-2 rounded-xl bg-white border hover:bg-gray-50">Aplicar</button>
+        </div>
+        <div class="mt-2 text-xs text-gray-500">
+          Valor atual: <span id="api-base-current" class="font-mono">(mesma origem)</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/js/api-client.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    const rawEl = document.getElementById('raw');
+    const apiBaseCurrent = document.getElementById('api-base-current');
+
+    function refreshApiBaseLabel() {
+      apiBaseCurrent.textContent = window.API_BASE_URL || '(mesma origem)';
+    }
+
+    async function refresh() {
+      statusEl.textContent = 'Carregando...';
+      try {
+        const st = await window.ApiClient.getStatus();
+        rawEl.textContent = JSON.stringify(st, null, 2);
+        statusEl.textContent = 'OK';
+      } catch (e) {
+        statusEl.textContent = e.message || 'Erro';
+      }
+    }
+
+    document.getElementById('btn-refresh').addEventListener('click', refresh);
+    document.getElementById('btn-set').addEventListener('click', () => {
+      const v = document.getElementById('api-base').value.trim();
+      window.API_BASE_URL = v || '';
+      refreshApiBaseLabel();
+      refresh();
+    });
+
+    refreshApiBaseLabel();
+    refresh();
+  </script>
+</body>
+</html>
+

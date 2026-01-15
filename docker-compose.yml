@@ -1,0 +1,20 @@
+services:
+  medgemma-poc:
+    build: .
+    container_name: medgemma-poc
+    ports:
+      - "8000:8000"
+    environment:
+      # Ajuste via .env local (não versionado) ou diretamente aqui
+      - DEVICE=auto
+      - USE_QUANTIZATION=false
+      - MAX_NEW_TOKENS=512
+      - TEMPERATURE=0.2
+      - TOP_P=0.9
+      - RATE_LIMIT_PER_MINUTE=30
+      - LOG_LEVEL=INFO
+      - LOG_DIR=/app/data/logs
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+

@@ -1,0 +1,148 @@
+Preciso que você crie uma POC completa para integração com o modelo MedGemma do Google (IA médica).
+
+## Objetivo
+Criar uma API REST que:
+1. Carregue o modelo MedGemma 4B localmente (ou via inference API)
+2. Exponha endpoints para consultas médicas em texto
+3. Seja estruturada para futura integração com N8n/WhatsApp
+
+## Requisitos Técnicos
+
+### Dependências (requirements.txt)
+- fastapi>=0.104.0
+- uvicorn[standard]>=0.24.0
+- transformers>=4.50.0
+- torch>=2.2.0
+- accelerate
+- bitsandbytes (para quantização 4-bit se necessário)
+- pydantic>=2.0
+- python-dotenv
+- loguru
+- httpx
+
+### Estrutura do Projeto
+Crie a seguinte estrutura:
+medgemma-poc/
+├── src/
+│   ├── init.py
+│   ├── api/
+│   │   ├── init.py
+│   │   ├── routes/
+│   │   │   ├── init.py
+│   │   │   └── health_assistant.py
+│   │   └── dependencies.py
+│   ├── core/
+│   │   ├── init.py
+│   │   ├── config.py
+│   │   └── logging.py
+│   ├── models/
+│   │   ├── init.py
+│   │   └── schemas.py
+│   └── services/
+│       ├── init.py
+│       └── medgemma_service.py
+├── tests/
+│   └── test_api.py
+├── .env.example
+├── requirements.txt
+├── docker-compose.yml (opcional)
+└── main.py
+
+### Funcionalidades Obrigatórias
+
+1. **MedGemmaService** (src/services/medgemma_service.py):
+   - Singleton para gerenciar o modelo
+   - Método `load_model()` com lazy loading
+   - Método `generate_response(prompt: str, system_prompt: str = None) -> str`
+   - Suporte a quantização 4-bit para GPUs com menos VRAM
+   - Fallback para CPU se GPU não disponível
+
+2. **Schemas Pydantic** (src/models/schemas.py):
+```python
+   class HealthQuery(BaseModel):
+       message: str
+       context: Optional[str] = None  # histórico do paciente
+       language: str = "pt-BR"
+   
+   class HealthResponse(BaseModel):
+       response: str
+       disclaimer: str
+       model_used: str
+       processing_time_ms: float
+```
+
+3. **Endpoints** (src/api/routes/health_assistant.py):
+   - `POST /api/v1/health/query` - Consulta médica geral
+   - `POST /api/v1/health/triage` - Triagem de sintomas
+   - `POST /api/v1/health/explain` - Explicar termos médicos
+   - `GET /api/v1/health/status` - Status do modelo
+
+4. **Configuração** (src/core/config.py):
+   - Carregar do .env
+   - MODEL_ID (default: "google/medgemma-4b-it")
+   - HF_TOKEN (Hugging Face token)
+   - USE_QUANTIZATION (bool)
+   - MAX_NEW_TOKENS
+   - DEVICE (cuda/cpu/auto)
+
+### System Prompts Sugeridos
+
+Para triagem:
+Você é um assistente de saúde treinado para fazer triagem inicial de sintomas.
+Sua função é:
+
+Coletar informações sobre sintomas
+Fazer perguntas clarificadoras quando necessário
+Indicar o nível de urgência (verde/amarelo/vermelho)
+NUNCA dar diagnósticos definitivos
+Sempre recomendar buscar um profissional de saúde
+
+Responda sempre em português brasileiro de forma clara e empática.
+
+Para explicação de termos:
+Você é um assistente de saúde especializado em explicar termos médicos de forma simples.
+Explique o termo solicitado de maneira que uma pessoa leiga possa entender.
+Use analogias do dia a dia quando apropriado.
+Responda em português brasileiro.
+
+### Considerações Importantes
+
+1. **Disclaimer obrigatório** em todas as respostas:
+   "Esta é uma orientação automatizada e não substitui a consulta com um profissional de saúde."
+
+2. **Rate limiting**: Implementar limite de requisições por IP
+
+3. **Logging**: Registrar todas as interações (sem dados sensíveis do paciente)
+
+4. **Graceful degradation**: Se o modelo não carregar, retornar erro amigável
+
+## Entregáveis
+
+1. Código completo e funcional
+2. README.md com instruções de setup
+3. .env.example com todas as variáveis necessárias
+4. Exemplo de requisição curl para cada endpoint
+
+## Bônus (se possível)
+- Docker Compose para facilitar deploy
+- Endpoint de health check para monitoramento
+- Suporte a streaming de resposta (SSE)
+
+## Interface de usuário
+- Interface de usuário para consulta médica geral
+- Interface de usuário para triagem de sintomas
+- Interface de usuário para explicação de termos médicos
+- Interface de usuário para status do modelo
+- Interface de usuário para configuração do modelo
+- Interface de usuário para logs do modelo
+- Interface de usuário para métricas do modelo
+- Interface de usuário para monitoramento do modelo
+- Interface de usuário para administração do modelo
+- Interface de usuário para suporte ao usuário
+
+** IMPORTANTE **
+Tenho um pré projeto em html, css e javascript que deve ser integrado com a API. 
+O projeto está em um arquivo chamado chat_WebSocket.html.
+O projeto deve ser integrado com a API e deve ser possível usar a API para gerar o relatório.
+O projeto deve ser possível usar a API para gerar o relatório.
+O projeto deve ser possível usar a API para gerar o relatório.

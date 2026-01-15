@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monitoramento - MedGemma POC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+  <div class="max-w-6xl mx-auto p-6">
+    <header class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div class="text-sm text-gray-500">MedGemma POC</div>
+          <div class="text-xl font-bold text-gray-900">Monitoramento</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-toggle" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Pausar</button>
+          <a href="index.html" class="text-sm text-red-600 hover:text-red-700">Voltar</a>
+        </div>
+      </div>
+      <nav class="mt-4 flex flex-wrap gap-2">
+        <a href="status.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Status</a>
+        <a href="logs.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Logs</a>
+        <a href="metricas.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Métricas</a>
+        <a href="monitoramento.html" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Monitoramento</a>
+      </nav>
+    </header>
+
+    <main class="mt-6 grid md:grid-cols-2 gap-4">
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Status</div>
+        <div id="status-msg" class="text-sm text-gray-600 mt-2">-</div>
+        <div class="mt-4 grid gap-3">
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Modelo</div>
+            <div id="model" class="font-mono text-sm">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Carregado</div>
+            <div id="loaded" class="text-sm font-semibold">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Device</div>
+            <div id="device" class="font-mono text-sm">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Uptime</div>
+            <div id="uptime" class="font-mono text-sm">-</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Métricas (live)</div>
+        <div class="mt-4 grid md:grid-cols-2 gap-3">
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Total requests</div>
+            <div id="m-total" class="text-2xl font-bold">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4">
+            <div class="text-xs text-gray-500">Tempo médio (ms)</div>
+            <div id="m-avg" class="text-2xl font-bold">-</div>
+          </div>
+          <div class="bg-gray-50 border rounded-xl p-4 md:col-span-2">
+            <div class="text-xs text-gray-500">Último request</div>
+            <div id="m-last" class="font-mono text-xs mt-1">-</div>
+          </div>
+        </div>
+        <pre id="m-raw" class="mt-4 whitespace-pre-wrap text-xs bg-gray-50 border rounded-xl p-4"></pre>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/js/api-client.js"></script>
+  <script>
+    const btn = document.getElementById('btn-toggle');
+    let running = true;
+    let timer = null;
+
+    function fmtUptime(sec) {
+      const s = Math.max(0, Math.floor(sec || 0));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = s % 60;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+    }
+
+    async function tick() {
+      try {
+        const st = await window.ApiClient.getStatus();
+        document.getElementById('status-msg').textContent = 'OK';
+        document.getElementById('model').textContent = st.model_id;
+        document.getElementById('loaded').textContent = String(st.model_loaded);
+        document.getElementById('device').textContent = st.device;
+        document.getElementById('uptime').textContent = fmtUptime(st.uptime_s);
+
+        const m = await window.ApiClient.getMetrics();
+        document.getElementById('m-total').textContent = m.total_requests ?? 0;
+        document.getElementById('m-avg').textContent = (m.avg_processing_time_ms ?? 0).toFixed(0);
+        document.getElementById('m-last').textContent = m.last_request_iso || '-';
+        document.getElementById('m-raw').textContent = JSON.stringify(m.by_endpoint || {}, null, 2);
+      } catch (e) {
+        document.getElementById('status-msg').textContent = e.message || 'Erro';
+      }
+    }
+
+    function start() {
+      if (timer) clearInterval(timer);
+      tick();
+      timer = setInterval(tick, 5000);
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+    }
+
+    btn.addEventListener('click', () => {
+      running = !running;
+      btn.textContent = running ? 'Pausar' : 'Retomar';
+      if (running) start(); else stop();
+    });
+
+    start();
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Suporte - MedGemma POC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <header class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div class="text-sm text-gray-500">MedGemma POC</div>
+          <div class="text-xl font-bold text-gray-900">Suporte</div>
+        </div>
+        <a href="index.html" class="text-sm text-red-600 hover:text-red-700">Voltar</a>
+      </div>
+      <nav class="mt-4 flex flex-wrap gap-2">
+        <a href="chat.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Chat</a>
+        <a href="status.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Status</a>
+        <a href="config.html" class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Config</a>
+        <a href="suporte.html" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Suporte</a>
+      </nav>
+    </header>
+
+    <main class="mt-6 grid gap-4">
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Aviso importante</div>
+        <p class="mt-2 text-sm text-gray-700">
+          Esta aplicação é uma prova de conceito. As respostas são geradas por IA e podem conter erros.
+          Não substitui avaliação e conduta de um profissional de saúde.
+        </p>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Problemas comuns</div>
+        <div class="mt-3 space-y-3 text-sm text-gray-700">
+          <div>
+            <div class="font-semibold">1) Status mostra “Falha”</div>
+            <div class="text-gray-600 mt-1">
+              Verifique se a API está rodando. Se estiver usando Live Server/arquivo local, configure <span class="font-mono">window.API_BASE_URL</span>
+              na página <a class="text-red-600 hover:text-red-700" href="config.html">Config</a>.
+            </div>
+          </div>
+          <div>
+            <div class="font-semibold">2) Erro 503 “Modelo indisponível”</div>
+            <div class="text-gray-600 mt-1">
+              O modelo pode ter falhado ao carregar (memória insuficiente, falta de token, etc). Verifique logs do servidor e ajuste
+              <span class="font-mono">DEVICE</span>/<span class="font-mono">USE_QUANTIZATION</span> no <span class="font-mono">.env</span>.
+            </div>
+          </div>
+          <div>
+            <div class="font-semibold">3) Primeira resposta demora muito</div>
+            <div class="text-gray-600 mt-1">
+              Isso é esperado por causa do lazy-loading. Use a página <a class="text-red-600 hover:text-red-700" href="admin.html">Admin</a>
+              para fazer warm-up.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow p-6 border border-gray-200">
+        <div class="text-lg font-semibold">Checklist de configuração</div>
+        <ul class="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
+          <li>Crie <span class="font-mono">.env</span> a partir de <span class="font-mono">env.example</span></li>
+          <li>Defina <span class="font-mono">HF_TOKEN</span> se necessário</li>
+          <li>Use <span class="font-mono">DEVICE=cpu</span> para rodar sem GPU</li>
+          <li>Se tiver GPU, teste <span class="font-mono">DEVICE=cuda</span> e (opcional) <span class="font-mono">USE_QUANTIZATION=true</span></li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+
