@@ -23,9 +23,27 @@ DISCLAIMER_PTBR = (
 
 
 SYSTEM_PROMPT_GENERAL_PTBR = (
-    "Você é um assistente de saúde. Forneça orientações gerais, explique possibilidades, "
-    "faça perguntas de esclarecimento quando necessário e recomende procurar um profissional "
-    "de saúde. Nunca dê diagnósticos definitivos."
+    "Você é um assistente de TRIAGEM EM SAÚDE (pré-atendimento), focado em coletar informações, "
+    "identificar sinais de alerta (red flags) e orientar o próximo passo (ex.: emergência, urgência, rotina). "
+    "Você NÃO faz diagnóstico definitivo, NÃO define tratamento, mas pode prescreve medicamentos MIP (Medicamentos Isentos de Prescrição) se necessário. "
+    "Seu trabalho é: (1) entender a queixa, (2) fazer perguntas objetivas para completar dados, "
+    "(3) sinalizar possíveis riscos com base em sintomas e (4) recomendar o nível de procura de atendimento. "
+    "\n\n"
+    "Prioridade máxima: segurança. Se houver sinais compatíveis com emergência (ex.: dor no peito intensa, "
+    "falta de ar importante, desmaio, sinais de AVC, confusão mental, sangramento importante, "
+    "reação alérgica grave, convulsão, piora rápida, dor muito forte, rigidez de nuca com febre, "
+    "ideação suicida, intoxicação), oriente procurar pronto atendimento/urgência imediatamente "
+    "e não continue com triagem longa."
+    "\n\n"
+    "Em cada resposta, siga EXATAMENTE este formato em TEXTO PURO (sem Markdown):"
+    "\n"
+    "(faça de 2 a 5 perguntas curtas e diretas para confirmar o diagnóstico e orientar o próximo passo)\n"
+    "3) SINAIS DE ALERTA: (se houver, liste em uma frase o(s) sinal(is) e por que preocupa; se não houver, diga 'não identificados por enquanto')\n"
+    "4) PRÓXIMO PASSO RECOMENDADO: (EMERGENCIA/URGENTE/ROTINA/INSUFICIENTE) + recomendação objetiva\n"
+    "\n\n"
+    "Regras de conversa: mantenha continuidade, não se reapresente, não invente informações. "
+    "Se faltarem dados essenciais, use 'INSUFICIENTE' e pergunte. "
+    "Responda sempre em português brasileiro, em texto puro."
 )
 
 SYSTEM_PROMPT_TRIAGE_PTBR = (
@@ -36,14 +54,17 @@ SYSTEM_PROMPT_TRIAGE_PTBR = (
     "- Indicar o nível de urgência (verde/amarelo/vermelho)\n"
     "- NUNCA dar diagnósticos definitivos\n"
     "- Sempre recomendar buscar um profissional de saúde\n\n"
-    "Responda sempre em português brasileiro de forma clara e empática."
+    "Responda sempre em português brasileiro de forma clara e empática.\n"
+    "Mantenha continuidade entre as mensagens (não se reapresente a cada resposta).\n"
+    "Responda em TEXTO PURO (sem Markdown)."
 )
 
 SYSTEM_PROMPT_EXPLAIN_PTBR = (
     "Você é um assistente de saúde especializado em explicar termos médicos de forma simples.\n"
     "Explique o termo solicitado de maneira que uma pessoa leiga possa entender.\n"
     "Use analogias do dia a dia quando apropriado.\n"
-    "Responda em português brasileiro."
+    "Responda em português brasileiro.\n"
+    "Responda em TEXTO PURO (sem Markdown)."
 )
 
 
@@ -244,6 +265,46 @@ class MedGemmaService:
         raw = f"{system_prompt or ''}\n---\n{context or ''}\n---\n{prompt}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
+    def _clean_generated_text(self, text: str) -> str:
+        """
+        Limpa e ajusta o texto gerado para evitar cortes no meio de palavras ou frases.
+        Garante que o texto termine de forma adequada.
+        """
+        if not text:
+            return text
+
+        text = text.strip()
+
+        # Se o texto terminar com pontuação adequada, considera completo
+        if text and text[-1] in ".!?:;":
+            return text
+
+        # Se o texto terminar com letra/dígito (possível corte no meio da palavra)
+        # Verifica se há pontuação próxima ao final que indique fim natural
+        if text and text[-1].isalnum():
+            # Procura os últimos sinais de pontuação que indicam fim natural
+            punct_chars = [".", "!", "?", ":", ";", ","]
+            last_punct = -1
+            for punct in punct_chars:
+                pos = text.rfind(punct)
+                if pos > last_punct:
+                    last_punct = pos
+
+            # Se encontrou pontuação nos últimos 50 caracteres, mantém até ela (mais conservador)
+            if last_punct > 0 and last_punct > len(text) - 50:
+                text = text[: last_punct + 1].strip()
+                return text
+
+            # Se não encontrou pontuação próxima, procura o último espaço
+            # e remove a palavra incompleta apenas se estiver muito próxima do final
+            last_space = text.rfind(" ")
+            if last_space > 0 and last_space > len(text) - 15:
+                # Remove apenas a última palavra quebrada (mais conservador)
+                text = text[:last_space].strip()
+                # Não adiciona reticências automaticamente para não confundir o usuário
+
+        return text
+
     def generate_response(
         self,
         prompt: str,
@@ -275,11 +336,13 @@ class MedGemmaService:
         max_time_s: Optional[float] = None
 
         if self._device == "cpu":
-            max_new_tokens = min(max_new_tokens, int(os.getenv("CPU_MAX_NEW_TOKENS", "128")))
+            # Aumentado o limite padrão para 512 tokens (mais razoável para respostas completas)
+            # Permite respostas mais completas sem quebrar no meio das palavras
+            max_new_tokens = min(max_new_tokens, int(os.getenv("CPU_MAX_NEW_TOKENS", "512")))
             try:
-                max_time_s = float(os.getenv("CPU_MAX_TIME_S", "30"))
+                max_time_s = float(os.getenv("CPU_MAX_TIME_S", "60"))  # Aumentado para 60s
             except ValueError:
-                max_time_s = 30.0
+                max_time_s = 60.0
 
         t0 = time.time()
         gen_kwargs = {
@@ -301,6 +364,9 @@ class MedGemmaService:
             text = (outputs[0].get("generated_text") or "").strip()
         except Exception:
             text = str(outputs).strip()
+
+        # Garantir que o texto termine de forma adequada (evitar corte no meio de palavras/frases)
+        text = self._clean_generated_text(text)
 
         self._cache_set(cache_key, text)
         return GenerationResult(

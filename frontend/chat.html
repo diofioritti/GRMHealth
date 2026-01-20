@@ -67,7 +67,7 @@
 
     <main id="chat-messages" class="flex-1 p-6 overflow-y-auto space-y-4">
       <div class="flex justify-start">
-        <div class="bg-gray-200 text-gray-800 rounded-xl rounded-bl-none p-3 max-w-xs">
+        <div class="bg-gray-200 text-gray-800 rounded-xl rounded-bl-none p-3 max-w-[85%]">
           <p class="text-sm">
             Olá! Eu sou uma POC de chat integrada ao MedGemma. Descreva sua dúvida de saúde em português.
           </p>
@@ -150,7 +150,7 @@
 
         wrapper.classList.add('flex');
         p.classList.add('text-sm');
-        bubble.classList.add('p-3', 'max-w-xs', 'rounded-xl', 'break-words');
+        bubble.classList.add('p-3', 'max-w-[85%]', 'rounded-xl', 'break-words');
 
         if (sender === 'user') {
           wrapper.classList.add('justify-end');
@@ -176,7 +176,7 @@
         wrapper.id = 'typing-indicator';
 
         const bubble = document.createElement('div');
-        bubble.classList.add('bg-gray-200', 'text-gray-800', 'rounded-xl', 'rounded-bl-none', 'p-3', 'max-w-xs');
+        bubble.classList.add('bg-gray-200', 'text-gray-800', 'rounded-xl', 'rounded-bl-none', 'p-3', 'max-w-[85%]');
 
         const indicator = document.createElement('div');
         indicator.classList.add('typing-indicator');
@@ -227,6 +227,34 @@
       const chatUI = new ChatUI();
       const sessionId = Utils.generateSessionId();
 
+      // Mantém histórico local da conversa para enviar como "context" na API (mantém continuidade).
+      // Estrutura: [{ role: 'user'|'agent', text: string }]
+      const chatHistory = [];
+
+      function buildContextFromHistory(history, maxChars = 3500) {
+        // Mantém apenas as últimas interações e limita tamanho para respeitar o max_length do backend.
+        const takeLast = 12; // ~6 turnos (usuário+assistente)
+        const slice = history.slice(Math.max(0, history.length - takeLast));
+        let ctx = slice
+          .map((t) => `${t.role === 'user' ? 'Usuário' : 'Assistente'}: ${t.text}`)
+          .join("\n");
+
+        if (ctx.length > maxChars) {
+          // corta do início (mantém o final mais recente)
+          ctx = ctx.slice(ctx.length - maxChars);
+        }
+        return ctx || null;
+      }
+
+      function normalizeAssistantText(text) {
+        // A UI atual usa textContent (texto puro). Alguns modelos retornam markdown (ex: **negrito**).
+        // Aqui removemos marcações simples para evitar "sujeira" visual.
+        return String(text || "")
+          .replace(/\*\*(.*?)\*\*/g, "$1")
+          .replace(/__(.*?)__/g, "$1")
+          .trim();
+      }
+
       document.getElementById('debug-session-id').textContent = sessionId;
       document.getElementById('debug-api-base').textContent = window.API_BASE_URL || '(mesma origem)';
 
@@ -255,14 +283,18 @@
         if (!messageText) return;
 
         chatUI.addMessage(messageText, 'user');
+        chatHistory.push({ role: 'user', text: messageText });
         chatUI.clearInput();
         chatUI.setSubmitEnabled(false);
         chatUI.showTypingIndicator();
 
         try {
-          const resp = await window.ApiClient.sendQuery(messageText, null, "pt-BR");
+          const context = buildContextFromHistory(chatHistory);
+          const resp = await window.ApiClient.sendQuery(messageText, context, "pt-BR");
           chatUI.hideTypingIndicator();
-          chatUI.addMessage(resp.response, 'agent');
+          const assistantText = normalizeAssistantText(resp.response);
+          chatUI.addMessage(assistantText, 'agent');
+          chatHistory.push({ role: 'agent', text: assistantText });
           if (resp.disclaimer) {
             chatUI.addSystemMessage(resp.disclaimer);
           }
